@@ -1,8 +1,5 @@
-matplotlib
 streamlit
-pyodbc
 pandas
-plotly
 openpyxl
-yagmail
-
+reportlab
+twilio
