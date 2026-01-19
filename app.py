@@ -1,100 +1,141 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from models import get_all_items, low_stock_alert, export_inventory_to_excel, send_low_stock_email, add_item, update_item, delete_item, stock_in, stock_out
+from db import get_connection, create_tables
+from invoice import generate_invoice
+from email_alerts import send_email
+from whatsapp_alerts import send_whatsapp
 
-st.set_page_config(page_title="Inventory Tracker SaaS", layout="wide")
-st.title("📦 Inventory Tracker SaaS")
+st.set_page_config(page_title="Inventory SaaS", layout="wide")
+create_tables()
+conn = get_connection()
 
-menu = ["Dashboard", "Manage Items", "Stock In/Out"]
-choice = st.sidebar.selectbox("Menu", menu)
+menu = st.sidebar.selectbox(
+    "Menu",
+    ["Dashboard", "Inventory", "Sales", "Purchase", "Profit Report", "Pricing"]
+)
 
 # ---------------- DASHBOARD ----------------
-if choice == "Dashboard":
-    df = get_all_items()
-    st.subheader("📊 Current Inventory")
-    st.dataframe(df)
+if menu == "Dashboard":
+    st.title("📊 Business Dashboard")
 
-    st.subheader("⚠️ Low Stock Alerts")
-    alerts = low_stock_alert()
-    if alerts.empty:
-        st.success("All items have sufficient stock.")
-    else:
-        st.warning(alerts)
+    items = pd.read_sql("SELECT * FROM items", conn)
+    sales = pd.read_sql("SELECT * FROM sales", conn)
 
-    st.subheader("📈 Stock Quantity Chart")
-    fig = px.bar(df, x="name", y="quantity", color="category", title="Stock Quantity by Item")
-    st.plotly_chart(fig, use_container_width=True)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Items", len(items))
+    col2.metric("Total Stock", items["quantity"].sum())
+    col3.metric("Total Sales ₹", sales["total"].sum() if not sales.empty else 0)
 
-    st.subheader("💾 Export Inventory to Excel")
-    if st.button("Export Excel"):
-        file_path = export_inventory_to_excel()
-        st.success(f"Excel file created: {file_path}")
-        st.download_button("Download Excel", file_path)
+    st.bar_chart(items.set_index("item_name")["quantity"])
 
-    st.subheader("📧 Send Low Stock Email Alert")
-    email = st.text_input("Enter Email", "")
-    if st.button("Send Email Alert"):
-        if email:
-            result = send_low_stock_email(email)
-            st.success(result)
-        else:
-            st.error("Enter email.")
+# ---------------- INVENTORY ----------------
+elif menu == "Inventory":
+    st.title("📦 Inventory")
 
-# ---------------- MANAGE ITEMS ----------------
-elif choice == "Manage Items":
-    st.subheader("Add New Item")
-    with st.form(key="add_item_form"):
-        name = st.text_input("Item Name")
-        sku = st.text_input("SKU")
-        category = st.text_input("Category")
-        purchase_price = st.number_input("Purchase Price")
-        selling_price = st.number_input("Selling Price")
-        quantity = st.number_input("Quantity", min_value=0)
-        supplier = st.text_input("Supplier")
-        low_stock_threshold = st.number_input("Low Stock Threshold", min_value=0)
-        submit = st.form_submit_button("Add Item")
-        if submit:
-            add_item(name, sku, category, purchase_price, selling_price, quantity, supplier, low_stock_threshold)
-            st.success(f"Item {name} added successfully!")
+    with st.form("add_item"):
+        c1, c2, c3 = st.columns(3)
+        name = c1.text_input("Item Name")
+        cat = c2.text_input("Category")
+        qty = c3.number_input("Qty", 0)
+        cost = c1.number_input("Cost Price", 0.0)
+        sell = c2.number_input("Selling Price", 0.0)
+        min_stock = c3.number_input("Min Stock", 1)
 
-    st.subheader("Update / Delete Item")
-    df = get_all_items()
-    selected_item = st.selectbox("Select Item", df['item_id'])
-    item_data = df[df['item_id'] == selected_item].iloc[0]
+        if st.form_submit_button("Add"):
+            conn.execute(
+                "INSERT INTO items VALUES (NULL,?,?,?,?,?,?)",
+                (name, cat, qty, cost, sell, min_stock)
+            )
+            conn.commit()
+            st.success("Item added")
 
-    with st.form(key="update_item_form"):
-        name = st.text_input("Item Name", item_data['name'])
-        sku = st.text_input("SKU", item_data['sku'])
-        category = st.text_input("Category", item_data['category'])
-        purchase_price = st.number_input("Purchase Price", value=float(item_data['purchase_price']))
-        selling_price = st.number_input("Selling Price", value=float(item_data['selling_price']))
-        supplier = st.text_input("Supplier", item_data['supplier'])
-        low_stock_threshold = st.number_input("Low Stock Threshold", value=int(item_data['low_stock_threshold']))
-        update_submit = st.form_submit_button("Update Item")
-        delete_submit = st.form_submit_button("Delete Item")
-        if update_submit:
-            update_item(selected_item, name, sku, category, purchase_price, selling_price, supplier, low_stock_threshold)
-            st.success(f"Item {name} updated successfully!")
-        if delete_submit:
-            delete_item(selected_item)
-            st.success(f"Item {name} deleted successfully!")
+    df = pd.read_sql("SELECT * FROM items", conn)
+    st.dataframe(df, use_container_width=True)
 
-# ---------------- STOCK IN/OUT ----------------
-elif choice == "Stock In/Out":
-    df = get_all_items()
-    selected_item = st.selectbox("Select Item", df['item_id'])
-    item_data = df[df['item_id'] == selected_item].iloc[0]
+# ---------------- SALES ----------------
+elif menu == "Sales":
+    st.title("🧾 Sales")
 
-    st.subheader(f"Update Stock for {item_data['name']}")
-    qty = st.number_input("Quantity", min_value=1)
-    notes = st.text_area("Notes")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Stock In"):
-            stock_in(selected_item, qty, notes)
-            st.success(f"Added {qty} to {item_data['name']}")
-    with col2:
-        if st.button("Stock Out"):
-            stock_out(selected_item, qty, notes)
-            st.success(f"Removed {qty} from {item_data['name']}")
+    items = pd.read_sql("SELECT * FROM items", conn)
+    item = st.selectbox("Item", items["item_name"])
+    qty = st.number_input("Qty", 1)
+    customer = st.text_input("Customer")
+
+    if st.button("Record Sale"):
+        row = items[items["item_name"] == item].iloc[0]
+        total = qty * row["selling_price"]
+
+        conn.execute(
+            "INSERT INTO sales VALUES (NULL,?,?,?,?,?,CURRENT_DATE)",
+            (row["item_id"], qty, row["selling_price"], total, customer)
+        )
+        conn.execute(
+            "UPDATE items SET quantity = quantity - ? WHERE item_id=?",
+            (qty, row["item_id"])
+        )
+        conn.commit()
+
+        pdf = generate_invoice(1, customer, item, qty, row["selling_price"])
+        st.success("Sale recorded & invoice generated")
+
+# ---------------- PURCHASE ----------------
+elif menu == "Purchase":
+    st.title("📥 Purchase")
+
+    items = pd.read_sql("SELECT * FROM items", conn)
+    item = st.selectbox("Item", items["item_name"])
+    qty = st.number_input("Qty Purchased", 1)
+    vendor = st.text_input("Vendor")
+
+    if st.button("Record Purchase"):
+        row = items[items["item_name"] == item].iloc[0]
+        total = qty * row["cost_price"]
+
+        conn.execute(
+            "INSERT INTO purchases VALUES (NULL,?,?,?,?,?,CURRENT_DATE)",
+            (row["item_id"], qty, row["cost_price"], total, vendor)
+        )
+        conn.execute(
+            "UPDATE items SET quantity = quantity + ? WHERE item_id=?",
+            (qty, row["item_id"])
+        )
+        conn.commit()
+        st.success("Purchase recorded")
+
+# ---------------- DAILY PROFIT REPORT ----------------
+elif menu == "Profit Report":
+    st.title("📈 Daily Profit Report")
+
+    query = """
+    SELECT 
+        s.sale_date,
+        SUM(s.total) AS sales_amount,
+        SUM(s.qty * i.cost_price) AS cost_amount,
+        SUM(s.total) - SUM(s.qty * i.cost_price) AS profit
+    FROM sales s
+    JOIN items i ON s.item_id = i.item_id
+    GROUP BY s.sale_date
+    """
+
+    report = pd.read_sql(query, conn)
+    st.dataframe(report, use_container_width=True)
+
+    st.line_chart(report.set_index("sale_date")["profit"])
+
+    if not report.empty:
+        today_profit = report.iloc[-1]["profit"]
+        if today_profit < 0:
+            send_email("⚠️ Today profit is negative")
+            send_whatsapp("⚠️ Alert: Today profit is negative")
+
+# ---------------- PRICING ----------------
+elif menu == "Pricing":
+    st.title("💰 Pricing Plans")
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("### Basic\n₹499/month\n✔ Inventory\n✔ Excel Export")
+    with c2:
+        st.markdown("### Pro\n₹999/month\n✔ Sales & Purchase\n✔ PDF Invoice\n✔ Profit Report")
+    with c3:
+        st.markdown("### Enterprise\nCustom\n✔ WhatsApp Alerts\n✔ Custom Reports\n✔ Cloud DB")
