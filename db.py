@@ -1,7 +1,9 @@
 import sqlite3
 
+DB_NAME = "inventory.db"
+
 def get_connection():
-    return sqlite3.connect("inventory.db", check_same_thread=False)
+    return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 def create_tables():
     conn = get_connection()
@@ -10,12 +12,12 @@ def create_tables():
     cur.execute("""
     CREATE TABLE IF NOT EXISTS items (
         item_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_name TEXT,
+        item_name TEXT NOT NULL,
         category TEXT,
-        quantity INTEGER,
-        cost_price REAL,
-        selling_price REAL,
-        min_stock INTEGER
+        quantity INTEGER DEFAULT 0,
+        cost_price REAL DEFAULT 0,
+        selling_price REAL DEFAULT 0,
+        min_stock INTEGER DEFAULT 0
     )
     """)
 
@@ -27,7 +29,7 @@ def create_tables():
         selling_price REAL,
         total REAL,
         customer TEXT,
-        sale_date DATE DEFAULT CURRENT_DATE
+        sale_date TEXT DEFAULT CURRENT_DATE
     )
     """)
 
@@ -39,7 +41,7 @@ def create_tables():
         cost_price REAL,
         total REAL,
         vendor TEXT,
-        purchase_date DATE DEFAULT CURRENT_DATE
+        purchase_date TEXT DEFAULT CURRENT_DATE
     )
     """)
 
