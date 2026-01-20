@@ -129,13 +129,4 @@ elif menu == "Profit Report":
             send_whatsapp("⚠️ Alert: Today profit is negative")
 
 # ---------------- PRICING ----------------
-elif menu == "Pricing":
-    st.title("💰 Pricing Plans")
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("### Basic\n₹499/month\n✔ Inventory\n✔ Excel Export")
-    with c2:
-        st.markdown("### Pro\n₹999/month\n✔ Sales & Purchase\n✔ PDF Invoice\n✔ Profit Report")
-    with c3:
-        st.markdown("### Enterprise\nCustom\n✔ WhatsApp Alerts\n✔ Custom Reports\n✔ Cloud DB")
