@@ -11,7 +11,7 @@ conn = get_connection()
 
 menu = st.sidebar.selectbox(
     "Menu",
-    ["Dashboard", "Inventory", "Sales", "Purchase", "Profit Report", "Pricing"]
+    ["Dashboard", "Inventory", "Sales", "Purchase", "Profit Report"]
 )
 
 # ---------------- DASHBOARD ----------------
@@ -129,4 +129,5 @@ elif menu == "Profit Report":
             send_whatsapp("⚠️ Alert: Today profit is negative")
 
 # ---------------- PRICING ----------------
+
 
