@@ -1,41 +1,51 @@
 import sqlite3
 
-DB_NAME = "inventory.db"
-
 def get_connection():
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
+    return sqlite3.connect("inventory.db", check_same_thread=False)
 
 def create_tables():
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
+    CREATE TABLE IF NOT EXISTS vendors (
+        vendor_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        business_name TEXT,
+        email TEXT UNIQUE,
+        password TEXT
+    )
+    """)
+
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        category TEXT,
+        item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vendor_id INTEGER,
+        item_name TEXT,
         quantity INTEGER,
-        price REAL
+        cost_price REAL,
+        selling_price REAL
     )
     """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS sales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vendor_id INTEGER,
         item_id INTEGER,
         qty INTEGER,
         total REAL,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        date TEXT DEFAULT CURRENT_DATE
     )
     """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS purchases (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vendor_id INTEGER,
         item_id INTEGER,
         qty INTEGER,
-        cost REAL,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        total_cost REAL,
+        date TEXT DEFAULT CURRENT_DATE
     )
     """)
 
