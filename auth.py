@@ -3,9 +3,10 @@ from db import get_connection
 
 def signup():
     st.subheader("Vendor Signup")
-    business = st.text_input("Business Name")
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+    business = st.text_input("Business Name", key="signup_business")
+    email = st.text_input("Email", key="signup_email")
+    password = st.text_input("Password", type="password", key="signup_password")
+    
 
     if st.button("Create Account"):
         conn = get_connection()
@@ -22,8 +23,9 @@ def signup():
 
 def login():
     st.subheader("Vendor Login")
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
+   
 
     if st.button("Login"):
         conn = get_connection()
