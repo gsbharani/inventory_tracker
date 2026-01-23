@@ -31,7 +31,7 @@ def login():
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, name FROM vendors WHERE email=%s AND password=%s",
+            "SELECT vendor_id, name FROM vendors WHERE email=%s AND password=%s",
             (email, password)
         )
         user = cur.fetchone()
