@@ -2,7 +2,7 @@ import streamlit as st
 from db import get_connection
 
 def profit_page():
-    st.header("Profit")
+    st.header("💰 Profit Summary")
 
     conn = get_connection()
     cur = conn.cursor()
