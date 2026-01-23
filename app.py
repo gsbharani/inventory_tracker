@@ -1,8 +1,34 @@
 import streamlit as st
-from db import get_connection
+from auth import login, signup
+from items import items_page
+from sales import sales_page
+from profit import profit_page
 
-try:
-    conn = get_connection()
-    st.success("Connected to Supabase!")
-except Exception as e:
-    st.error(f"Connection failed: {e}")
+st.set_page_config("Inventory SaaS", layout="wide")
+
+# ---------- AUTH ----------
+if "vendor_id" not in st.session_state:
+    choice = st.radio("Choose", ["Login", "Sign Up"])
+
+    if choice == "Login":
+        login()
+    else:
+        signup()
+
+    st.stop()
+
+# ---------- APP ----------
+st.sidebar.success(f"Welcome {st.session_state['vendor_name']}")
+
+if st.sidebar.button("Logout"):
+    st.session_state.clear()
+    st.rerun()
+
+page = st.sidebar.selectbox("Menu", ["Items", "Sales", "Profit"])
+
+if page == "Items":
+    items_page()
+elif page == "Sales":
+    sales_page()
+elif page == "Profit":
+    profit_page()
