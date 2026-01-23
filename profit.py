@@ -6,12 +6,15 @@ def profit_page():
 
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE vendor_id=%s",
-        (st.session_state.vendor_id,)
-    )
-    total = cur.fetchone()[0]
-    cur.close()
+
+    cur.execute("""
+        SELECT COALESCE(SUM((i.selling_price - i.purchase_price) * s.quantity),0)
+        FROM sales s
+        JOIN items i ON s.item_id=i.item_id
+        WHERE s.vendor_id=%s
+    """, (st.session_state.vendor_id,))
+
+    profit = cur.fetchone()[0]
     conn.close()
 
-    st.metric("Total Revenue", f"₹ {total}")
+    st.metric("Total Profit", f"₹ {profit}")
