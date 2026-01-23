@@ -7,7 +7,7 @@ def profit_page():
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT COALESCE(SUM(total),0) FROM sales WHERE vendor_id=%s",
+        "SELECT COALESCE(SUM(total_amount),0) FROM sales WHERE vendor_id=%s",
         (st.session_state.vendor_id,)
     )
     total = cur.fetchone()[0]
