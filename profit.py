@@ -1,30 +1,17 @@
-import streamlit as st
-import pandas as pd
 from db import get_connection
+import streamlit as st
 
-def profit_report():
-    st.subheader("Daily Profit Report")
-
+def profit_page():
+    vid = st.session_state.vendor_id
     conn = get_connection()
+    cur = conn.cursor()
 
-    sales = pd.read_sql("""
-        SELECT date, SUM(total) AS sales_amount
-        FROM sales
-        WHERE vendor_id=?
-        GROUP BY date
-    """, conn, params=(st.session_state.vendor_id,))
+    cur.execute("""
+        SELECT
+            SUM((selling_price - purchase_price) * quantity)
+        FROM items
+        WHERE vendor_id=%s
+    """, (vid,))
 
-    purchases = pd.read_sql("""
-        SELECT date, SUM(total_cost) AS purchase_amount
-        FROM purchases
-        WHERE vendor_id=?
-        GROUP BY date
-    """, conn, params=(st.session_state.vendor_id,))
-
-    df = sales.merge(purchases, on="date", how="left").fillna(0)
-    df["profit"] = df["sales_amount"] - df["purchase_amount"]
-
-    st.dataframe(df)
-    st.metric("Total Profit", df["profit"].sum())
-
-    conn.close()
+    profit = cur.fetchone()[0] or 0
+    st.metric("Total Profit", f"₹ {profit}")
