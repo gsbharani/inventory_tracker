@@ -3,44 +3,44 @@ import streamlit as st
 
 def get_connection():
     return psycopg2.connect(
-        host=st.secrets["DB_HOST"],
-        dbname=st.secrets["DB_NAME"],
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        port=st.secrets["DB_PORT"],
+        st.secrets["DATABASE_URL"],
         sslmode="require"
     )
 
 def create_tables():
     conn = get_connection()
     cur = conn.cursor()
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS vendors (
-        vendor_id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE,
+        password TEXT,
+        name TEXT
     );
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS items (
-        item_id SERIAL PRIMARY KEY,
-        vendor_id INT REFERENCES vendors(vendor_id),
-        item_name TEXT NOT NULL,
-        category TEXT,
-        quantity INT DEFAULT 0,
-        price FLOAT DEFAULT 0
+        id SERIAL PRIMARY KEY,
+        vendor_id INT,
+        name TEXT,
+        quantity INT,
+        price NUMERIC
     );
     """)
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS sales (
-        sale_id SERIAL PRIMARY KEY,
-        vendor_id INT REFERENCES vendors(vendor_id),
-        item_id INT REFERENCES items(item_id),
-        quantity INT NOT NULL,
-        total_price FLOAT NOT NULL,
-        sale_date TIMESTAMP DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        vendor_id INT,
+        item_name TEXT,
+        qty INT,
+        total NUMERIC,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
+
     conn.commit()
+    cur.close()
     conn.close()
