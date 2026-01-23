@@ -16,7 +16,7 @@ def items_page():
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO items 
+            INSERT INTO items
             (vendor_id, item_name, category, purchase_price, selling_price, quantity)
             VALUES (%s,%s,%s,%s,%s,%s)
             """,
@@ -35,15 +35,23 @@ def items_page():
         st.success("Item added")
 
     conn = get_connection()
-    df = pd.read_sql(
+    cur = conn.cursor()
+    cur.execute(
         """
         SELECT item_name, category, quantity, purchase_price, selling_price
         FROM items
         WHERE vendor_id = %s
         """,
-        conn,
-        params=(st.session_state.vendor_id,)
+        (st.session_state.vendor_id,)
     )
+
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
+
+    df = pd.DataFrame(
+        rows,
+        columns=["Item Name", "Category", "Quantity", "Purchase Price", "Selling Price"]
+    )
 
     st.dataframe(df)
