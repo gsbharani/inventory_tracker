@@ -1,17 +1,15 @@
-from db import get_connection
 import streamlit as st
+from db import get_connection
 
 def profit_page():
-    vid = st.session_state.vendor_id
+    vendor_id = st.session_state.vendor_id
+    st.header("Profit Report")
     conn = get_connection()
     cur = conn.cursor()
-
-    cur.execute("""
-        SELECT
-            SUM((selling_price - purchase_price) * quantity)
-        FROM items
-        WHERE vendor_id=%s
-    """, (vid,))
-
-    profit = cur.fetchone()[0] or 0
-    st.metric("Total Profit", f"₹ {profit}")
+    cur.execute(
+        "SELECT SUM(total_price) FROM sales WHERE vendor_id=%s;",
+        (vendor_id,)
+    )
+    profit = cur.fetchone()[0]
+    conn.close()
+    st.write(f"Total Profit: {profit if profit else 0}")
