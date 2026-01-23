@@ -3,130 +3,88 @@ import pandas as pd
 from db import get_connection
 from datetime import datetime
 
-def items_page():
-    st.title("Items Management")
+def sales_page():
+    st.title("Sales Management")
     conn = get_connection()
     cur = conn.cursor()
 
-    # ---------------- Add New Item ----------------
-    with st.expander("Add New Item"):
-        item_name = st.text_input("Item Name")
-        category = st.text_input("Category")
-        purchase_price = st.number_input("Purchase Price", min_value=0.0)
-        selling_price = st.number_input("Selling Price", min_value=0.0)
-        quantity = st.number_input("Quantity", min_value=0)
-
-        if st.button("Add Item"):
-            cur.execute(
-                """
-                INSERT INTO items (vendor_id, item_name, category, purchase_price, selling_price, quantity, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                """,
-                (
-                    st.session_state.vendor_id,
-                    item_name,
-                    category,
-                    purchase_price,
-                    selling_price,
-                    quantity
-                )
-            )
-            conn.commit()
-            st.success(f"Item '{item_name}' added successfully!")
-
-    st.markdown("---")
-
-    # ---------------- Bulk Import ----------------
-    st.subheader("Bulk Import Items from Excel/CSV")
-    uploaded_file = st.file_uploader("Upload Excel or CSV", type=["xlsx", "csv"])
-    if uploaded_file:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-
-            st.write("Preview of uploaded data")
-            st.dataframe(df.head())
-
-            if st.button("Import Items"):
-                for _, row in df.iterrows():
-                    cur.execute(
-                        """
-                        INSERT INTO items (vendor_id, item_name, category, purchase_price, selling_price, quantity, created_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
-                        """,
-                        (
-                            st.session_state.vendor_id,
-                            row["item_name"],
-                            row["category"],
-                            row["purchase_price"],
-                            row["selling_price"],
-                            row["quantity"]
-                        )
-                    )
-                conn.commit()
-                st.success("Items imported successfully!")
-
-        except Exception as e:
-            st.error(f"Error importing file: {e}")
-
-    st.markdown("---")
-
-    # ---------------- Show Items Table ----------------
-    st.subheader("Your Items")
+    # ---------------- Add Sale ----------------
+    st.subheader("Record a Sale")
     try:
-        df_items = pd.read_sql(
-            "SELECT item_id, item_name, category, purchase_price, selling_price, quantity FROM items WHERE vendor_id=%s",
+        # Fetch items for the vendor
+        items_df = pd.read_sql(
+            "SELECT item_id, item_name, quantity, selling_price FROM items WHERE vendor_id=%s",
             conn,
             params=(st.session_state.vendor_id,)
         )
-        st.dataframe(df_items)
+        if items_df.empty:
+            st.info("No items found. Please add items first.")
+            return
 
-        # ---------------- Low Stock Alert ----------------
-        low_stock = df_items[df_items["quantity"] < 10]
-        if not low_stock.empty:
-            st.warning("Low Stock Items:")
-            st.dataframe(low_stock[["item_name", "quantity"]])
+        selected_item = st.selectbox("Select Item", items_df["item_name"])
+        item_row = items_df[items_df["item_name"] == selected_item].iloc[0]
 
-        # ---------------- Edit / Delete ----------------
-        selected_item = st.selectbox("Select Item to Edit/Delete", df_items["item_name"])
-        if selected_item:
-            item_row = df_items[df_items["item_name"] == selected_item].iloc[0]
+        max_qty = int(item_row["quantity"])
+        qty = st.number_input("Quantity Sold", min_value=1, max_value=max_qty, value=1)
 
-            new_name = st.text_input("Item Name", value=item_row["item_name"])
-            new_category = st.text_input("Category", value=item_row["category"])
-            new_purchase = st.number_input("Purchase Price", value=float(item_row["purchase_price"]))
-            new_selling = st.number_input("Selling Price", value=float(item_row["selling_price"]))
-            new_quantity = st.number_input("Quantity", value=int(item_row["quantity"]))
+        if st.button("Record Sale"):
+            total_amount = qty * float(item_row["selling_price"])
 
-            if st.button("Update Item"):
-                cur.execute(
-                    """
-                    UPDATE items
-                    SET item_name=%s, category=%s, purchase_price=%s, selling_price=%s, quantity=%s
-                    WHERE item_id=%s AND vendor_id=%s
-                    """,
-                    (new_name, new_category, new_purchase, new_selling, new_quantity, item_row["item_id"], st.session_state.vendor_id)
-                )
-                conn.commit()
-                st.success("Item updated successfully!")
-                st.experimental_rerun()
+            # Insert into sales table
+            cur.execute(
+                """
+                INSERT INTO sales (vendor_id, item_id, quantity, total_amount, created_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                """,
+                (st.session_state.vendor_id, item_row["item_id"], qty, total_amount)
+            )
 
-            if st.button("Delete Item"):
-                cur.execute(
-                    "DELETE FROM items WHERE item_id=%s AND vendor_id=%s",
-                    (item_row["item_id"], st.session_state.vendor_id)
-                )
-                conn.commit()
-                st.success("Item deleted successfully!")
-                st.experimental_rerun()
+            # Deduct stock from items
+            cur.execute(
+                "UPDATE items SET quantity = quantity - %s WHERE item_id=%s AND vendor_id=%s",
+                (qty, item_row["item_id"], st.session_state.vendor_id)
+            )
 
-        # ---------------- Export to Excel ----------------
-        if st.button("Export Items to Excel"):
-            df_items.to_excel("my_items.xlsx", index=False)
-            with open("my_items.xlsx", "rb") as f:
-                st.download_button("Download Excel", f, file_name="my_items.xlsx")
+            conn.commit()
+            st.success(f"Sale recorded! Total: ₹{total_amount:.2f}")
+            st.experimental_rerun()
 
     except Exception as e:
-        st.error(f"Error loading items: {e}")
+        st.error(f"Error recording sale: {e}")
+
+    st.markdown("---")
+
+    # ---------------- Sales Report ----------------
+    st.subheader("Sales Report")
+    try:
+        sales_df = pd.read_sql(
+            """
+            SELECT s.sale_id, i.item_name, s.quantity, s.total_amount, s.created_at
+            FROM sales s
+            JOIN items i ON s.item_id = i.item_id
+            WHERE s.vendor_id=%s
+            ORDER BY s.created_at DESC
+            """,
+            conn,
+            params=(st.session_state.vendor_id,)
+        )
+
+        if not sales_df.empty:
+            st.dataframe(sales_df)
+
+            # Export report
+            if st.button("Export Sales to Excel"):
+                sales_df.to_excel("sales_report.xlsx", index=False)
+                with open("sales_report.xlsx", "rb") as f:
+                    st.download_button("Download Excel", f, file_name="sales_report.xlsx")
+
+            # ---------------- Sales Analytics ----------------
+            st.subheader("Sales Analytics")
+            sales_summary = sales_df.groupby("item_name")["total_amount"].sum().reset_index()
+            sales_summary = sales_summary.sort_values("total_amount", ascending=False)
+            st.bar_chart(data=sales_summary, x="item_name", y="total_amount")
+        else:
+            st.info("No sales recorded yet.")
+
+    except Exception as e:
+        st.error(f"Error loading sales report: {e}")
