@@ -32,15 +32,35 @@ def dashboard_page():
     c4.metric("Profit", f"₹ {profit['profit'][0]}")
 
     sales_chart = pd.read_sql("""
-        SELECT DATE(created_at) AS day, SUM(total_amount) AS sales
-        FROM sales
-        WHERE vendor_id=%s
-        GROUP BY day
-        ORDER BY day
-    """, conn, params=(st.session_state.vendor_id,))
+    SELECT DATE(created_at) AS day,
+           SUM(total_amount) AS sales
+    FROM sales
+    WHERE vendor_id = %s
+    GROUP BY day
+    ORDER BY day
+""", conn, params=(st.session_state.vendor_id,))
 
-    if not sales_chart.empty:
-        fig = px.line(sales_chart, x="day", y="sales", title="Daily Sales")
-        st.plotly_chart(fig, use_container_width=True)
+if not sales_chart.empty:
+    # Fix date issue
+    sales_chart["day"] = pd.to_datetime(sales_chart["day"]).dt.date
 
-    conn.close()
+    fig = px.line(
+        sales_chart,
+        x="day",
+        y="sales",
+        title="Daily Sales",
+        markers=True
+    )
+
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Sales (₹)",
+        xaxis=dict(type="category")
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No sales data available")
+
+conn.close()
+
