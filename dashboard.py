@@ -12,7 +12,7 @@ def dashboard_page():
         SELECT
             COUNT(DISTINCT i.item_id) AS items,
             COALESCE(SUM(i.quantity),0) AS stock,
-            COALESCE(SUM(s.total_amount),0) AS sales
+            ROUND(COALESCE(SUM(s.total_amount), 0) / 100000.0, 2) AS sales
         FROM items i
         LEFT JOIN sales s ON i.vendor_id=s.vendor_id
         WHERE i.vendor_id=%s
@@ -27,8 +27,8 @@ def dashboard_page():
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Items", int(kpi["items"][0]))
-    c2.metric("Stock", int(kpi["stock"][0]))
-    c3.metric("Sales", f"₹ {kpi['sales'][0]}")
+    c2.metric("Total Stocks", int(kpi["stock"][0]))
+    c3.metric("Total Sales", f"₹ {kpi['sales'][0]:.2f} Lakhs")
     c4.metric("Profit", f"₹ {profit['profit'][0]}")
 
     sales_chart = pd.read_sql("""
