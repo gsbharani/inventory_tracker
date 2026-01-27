@@ -1,90 +1,130 @@
 import streamlit as st
 import pandas as pd
 from db import get_connection
-from datetime import datetime
+from io import BytesIO
+
 
 def sales_page():
     st.title("Sales Management")
+
     conn = get_connection()
-    cur = conn.cursor()
 
-    # ---------------- Add Sale ----------------
-    st.subheader("Record a Sale")
-    try:
-        # Fetch items for the vendor
-        items_df = pd.read_sql(
-            "SELECT item_id, item_name, quantity, selling_price FROM items WHERE vendor_id=%s",
-            conn,
-            params=(st.session_state.vendor_id,)
-        )
-        if items_df.empty:
-            st.info("No items found. Please add items first.")
-            return
+    # ---------------- Record Sale ----------------
+    st.header("Record Sale")
 
-        selected_item = st.selectbox("Select Item", items_df["item_name"])
-        item_row = items_df[items_df["item_name"] == selected_item].iloc[0]
+    df = pd.read_sql(
+        """
+        SELECT item_id, item_name, selling_price, quantity
+        FROM items
+        WHERE vendor_id = %s
+        """,
+        conn,
+        params=(int(st.session_state.vendor_id),)
+    )
 
-        max_qty = int(item_row["quantity"])
-        qty = st.number_input("Quantity Sold", min_value=1, max_value=max_qty, value=1)
+    if df.empty:
+        st.info("No items available. Add items before recording sales.")
+        return
 
-        if st.button("Record Sale"):
-            total_amount = qty * float(item_row["selling_price"])
+    item = st.selectbox(
+        "Item",
+        df.itertuples(index=False),
+        format_func=lambda x: f"{x.item_name} (Stock: {x.quantity})"
+    )
 
-            # Insert into sales table
+    qty = st.number_input(
+        "Quantity",
+        min_value=1,
+        max_value=int(item.quantity)
+    )
+
+    total = float(qty) * float(item.selling_price)
+
+    if st.button("Save Sale"):
+        try:
+            cur = conn.cursor()
+
             cur.execute(
                 """
-                INSERT INTO sales (vendor_id, item_id, quantity, total_amount, created_at)
-                VALUES (%s, %s, %s, %s, NOW())
+                INSERT INTO sales (vendor_id, item_id, quantity, total_amount)
+                VALUES (%s, %s, %s, %s)
                 """,
-                (st.session_state.vendor_id, item_row["item_id"], qty, total_amount)
+                (
+                    int(st.session_state.vendor_id),
+                    int(item.item_id),
+                    int(qty),
+                    total
+                )
             )
 
-            # Deduct stock from items
             cur.execute(
-                "UPDATE items SET quantity = quantity - %s WHERE item_id=%s AND vendor_id=%s",
-                (qty, item_row["item_id"], st.session_state.vendor_id)
+                """
+                UPDATE items
+                SET quantity = quantity - %s
+                WHERE item_id = %s
+                """,
+                (int(qty), int(item.item_id))
             )
 
             conn.commit()
-            st.success(f"Sale recorded! Total: ₹{total_amount:.2f}")
-            st.experimental_rerun()
+            st.success("Sale recorded successfully ✅")
+            st.rerun()
 
-    except Exception as e:
-        st.error(f"Error recording sale: {e}")
+        except Exception as e:
+            conn.rollback()
+            st.error(f"Error recording sale: {e}")
 
-    st.markdown("---")
+    st.divider()
 
     # ---------------- Sales Report ----------------
     st.subheader("Sales Report")
+
     try:
         sales_df = pd.read_sql(
             """
-            SELECT s.sale_id, i.item_name, s.quantity, s.total_amount, s.created_at
+            SELECT s.sale_id,
+                   i.item_name,
+                   s.quantity,
+                   s.total_amount,
+                   s.created_at
             FROM sales s
             JOIN items i ON s.item_id = i.item_id
-            WHERE s.vendor_id=%s
+            WHERE s.vendor_id = %s
             ORDER BY s.created_at DESC
             """,
             conn,
-            params=(st.session_state.vendor_id,)
+            params=(int(st.session_state.vendor_id),)
         )
 
-        if not sales_df.empty:
-            st.dataframe(sales_df)
-
-            # Export report
-            if st.button("Export Sales to Excel"):
-                sales_df.to_excel("sales_report.xlsx", index=False)
-                with open("sales_report.xlsx", "rb") as f:
-                    st.download_button("Download Excel", f, file_name="sales_report.xlsx")
-
-            # ---------------- Sales Analytics ----------------
-            st.subheader("Sales Analytics")
-            sales_summary = sales_df.groupby("item_name")["total_amount"].sum().reset_index()
-            sales_summary = sales_summary.sort_values("total_amount", ascending=False)
-            st.bar_chart(data=sales_summary, x="item_name", y="total_amount")
-        else:
+        if sales_df.empty:
             st.info("No sales recorded yet.")
+            return
+
+        st.dataframe(sales_df, use_container_width=True)
+
+        # ---------------- Export ----------------
+        output = BytesIO()
+        sales_df.to_excel(output, index=False)
+        output.seek(0)
+
+        st.download_button(
+            "📥 Download Sales Report (Excel)",
+            data=output,
+            file_name="sales_report.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # ---------------- Analytics ----------------
+        st.subheader("Sales Analytics")
+
+        summary = (
+            sales_df
+            .groupby("item_name", as_index=False)["total_amount"]
+            .sum()
+            .sort_values("total_amount", ascending=False)
+        )
+
+        st.bar_chart(summary, x="item_name", y="total_amount")
 
     except Exception as e:
         st.error(f"Error loading sales report: {e}")
