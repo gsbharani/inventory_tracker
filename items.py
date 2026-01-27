@@ -13,22 +13,22 @@ def items_page():
         item_name = st.text_input("Item Name")
         category = st.text_input("Category")
         purchase_price = st.number_input("Purchase Price", min_value=0.0, step=0.01)
-        selling_price = st.number_input("Selling Price", min_value=0.0, step=0.01)
+       
         quantity = st.number_input("Quantity", min_value=0, step=1)
 
         if st.button("Add / Update Item"):
             cur.execute(
                 """
-                INSERT INTO items (vendor_id, item_name, category, purchase_price, selling_price, quantity, created_at)
+                INSERT INTO items (vendor_id, item_name, category, purchase_price,  quantity, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (vendor_id, item_name) DO UPDATE 
                 SET category=EXCLUDED.category,
                     purchase_price=EXCLUDED.purchase_price,
-                    selling_price=EXCLUDED.selling_price,
+                   
                     quantity=EXCLUDED.quantity,
                     created_at=EXCLUDED.created_at
                 """,
-                (st.session_state.vendor_id, item_name, category, purchase_price, selling_price, quantity, datetime.now())
+                (st.session_state.vendor_id, item_name, category, purchase_price,  quantity, datetime.now())
             )
             conn.commit()
             st.success(f"Item '{item_name}' added/updated successfully!")
@@ -38,19 +38,19 @@ def items_page():
     uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
-        expected_cols = {"item_name", "category", "purchase_price", "selling_price", "quantity"}
+        expected_cols = {"item_name", "category", "purchase_price",  "quantity"}
         if not expected_cols.issubset(df.columns):
             st.error(f"Excel must have columns: {expected_cols}")
         else:
             for _, row in df.iterrows():
                 cur.execute(
                     """
-                    INSERT INTO items (vendor_id, item_name, category, purchase_price, selling_price, quantity, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO items (vendor_id, item_name, category, purchase_price,  quantity, created_at)
+                    VALUES (%s, %s, %s, %s,  %s, %s)
                     ON CONFLICT (vendor_id, item_name) DO UPDATE 
                     SET category=EXCLUDED.category,
                         purchase_price=EXCLUDED.purchase_price,
-                        selling_price=EXCLUDED.selling_price,
+                       
                         quantity=EXCLUDED.quantity,
                         created_at=EXCLUDED.created_at
                     """,
@@ -59,7 +59,7 @@ def items_page():
                         row["item_name"],
                         row["category"],
                         row["purchase_price"],
-                        row["selling_price"],
+                        
                         row["quantity"],
                         datetime.now()
                     )
@@ -69,7 +69,7 @@ def items_page():
 
     # ----------------- Display Items -----------------
     df_items = pd.read_sql(
-        "SELECT item_name, category, purchase_price, selling_price, quantity FROM items WHERE vendor_id=%s",
+        "SELECT item_name, category, purchase_price,  quantity FROM items WHERE vendor_id=%s",
         conn,
         params=(st.session_state.vendor_id,)
     )
