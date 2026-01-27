@@ -13,16 +13,38 @@ def sales_page():
         params=(st.session_state.vendor_id,)
     )
 
+    if df.empty:
+        st.info("No items available")
+        return
+
     item = st.selectbox(
         "Item",
         df.itertuples(index=False),
         format_func=lambda x: f"{x.item_name} (Stock: {x.quantity})"
     )
 
-    qty = st.number_input("Quantity", min_value=1, max_value=int(item.quantity))
-    unit_price = st.number_input("Selling Price", value=float(item.selling_price))
+    # 🚨 If stock is zero
+    if item.quantity <= 0:
+        st.warning("Out of stock ❌")
+        return
+
+    qty = st.number_input(
+        "Quantity",
+        min_value=1,
+        max_value=int(item.quantity),
+        value=1,   # ✅ THIS FIXES THE ERROR
+        step=1
+    )
+
+    unit_price = st.number_input(
+        "Selling Price",
+        min_value=0.0,
+        value=float(item.selling_price),
+        step=1.0
+    )
 
     total = qty * unit_price
+    st.info(f"Total Amount: ₹ {total}")
 
     if st.button("Record Sale"):
         cur = conn.cursor()
@@ -42,6 +64,7 @@ def sales_page():
             )
         )
 
+        # 🔻 Auto stock deduction + update selling price
         cur.execute(
             """
             UPDATE items
@@ -49,16 +72,18 @@ def sales_page():
                 selling_price = %s
             WHERE item_id = %s
             """,
-            (qty, unit_price, item.item_id)
+            (int(qty), float(unit_price), int(item.item_id))
         )
 
         conn.commit()
-        st.success("Sale recorded")
+        st.success("Sale recorded successfully ✅")
 
     st.subheader("Sales History")
+
     sales_df = pd.read_sql(
         """
-        SELECT s.sale_id, i.item_name, s.quantity, s.unit_price, s.total_amount, s.created_at
+        SELECT s.sale_id, i.item_name, s.quantity,
+               s.unit_price, s.total_amount, s.created_at
         FROM sales s
         JOIN items i ON s.item_id=i.item_id
         WHERE s.vendor_id=%s
@@ -67,6 +92,7 @@ def sales_page():
         conn,
         params=(st.session_state.vendor_id,)
     )
+
     st.dataframe(sales_df)
 
     conn.close()
