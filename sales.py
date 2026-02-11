@@ -8,7 +8,7 @@ def sales_page():
     conn = get_connection()
 
     df = pd.read_sql(
-        "SELECT item_id, item_name, selling_price, quantity FROM items WHERE vendor_id=%s",
+        "SELECT item_id, item_name,  quantity FROM items WHERE vendor_id=%s",
         conn,
         params=(st.session_state.vendor_id,)
     )
@@ -68,8 +68,8 @@ def sales_page():
         cur.execute(
             """
             UPDATE items
-            SET quantity = quantity - %s,
-                selling_price = %s
+            SET quantity = quantity - %s
+                
             WHERE item_id = %s
             """,
             (int(qty), float(unit_price), int(item.item_id))
