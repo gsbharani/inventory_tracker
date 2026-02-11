@@ -24,7 +24,7 @@ def dashboard_page():
     """, conn, params=(st.session_state.vendor_id,))
 
     profit = pd.read_sql("""
-        SELECT COALESCE(SUM((i.selling_price - i.purchase_price) * s.quantity),0) AS profit
+        SELECT COALESCE(SUM((s.selling_price - i.purchase_price) * s.quantity),0) AS profit
         FROM sales s
         JOIN items i ON s.item_id = i.item_id
         WHERE s.vendor_id = %s
